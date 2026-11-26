@@ -1,0 +1,414 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Catan Zar Masası</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: left half is the dice table (sticky on desktop), right column stacks distribution + board setup */
+:root{
+  --bg:#E9EFEE; --surface:#FFFFFF; --surface-2:#F3F6F5; --fg:#13232A; --muted:#5A6B70; --line:#D3DDDC;
+  --sea:#1E6A85; --sea-soft:#D6E8EE; --robber:#B42A21; --robber-soft:#F7DEDB;
+  --die-a:#E2742C; --die-b:#EEE4CF; --pip-a:#FFF7EE; --pip-b:#3B2E1E;
+  --wood:#2F6B3A; --brick:#B4532F; --sheep:#86B84A; --wheat:#DDAE36; --ore:#77808E;
+  --chip-fg:#FFFFFF;
+  --f-display:"Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --f-body:"Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --radius:14px;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0E181C; --surface:#152329; --surface-2:#1B2C33; --fg:#E4EDEE; --muted:#93A6AB; --line:#2A3E45;
+  --sea:#5DB3D1; --sea-soft:#183A47; --robber:#F0675C; --robber-soft:#3D1C1A;
+  --wood:#3F8A4D; --brick:#C8653F; --sheep:#93C556; --wheat:#E2B64A; --ore:#8D96A4;
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0E181C; --surface:#152329; --surface-2:#1B2C33; --fg:#E4EDEE; --muted:#93A6AB; --line:#2A3E45;
+  --sea:#5DB3D1; --sea-soft:#183A47; --robber:#F0675C; --robber-soft:#3D1C1A;
+  --wood:#3F8A4D; --brick:#C8653F; --sheep:#93C556; --wheat:#E2B64A; --ore:#8D96A4;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg); color:var(--fg); font-family:var(--f-body); font-size:15px; line-height:1.45;
+  padding-left:max(16px, env(safe-area-inset-left,0px)); padding-right:max(16px, env(safe-area-inset-right,0px)); padding-block:16px;}
+button{font:inherit; color:inherit; cursor:pointer}
+button:focus-visible{outline:3px solid var(--sea); outline-offset:2px}
+.app{display:grid; grid-template-columns:minmax(0,1.15fr) minmax(0,1fr); gap:16px; max-width:1500px; margin:0 auto; align-items:start}
+@media (max-width:900px){ .app{grid-template-columns:minmax(0,1fr)} }
+
+/* ---------- Stage ---------- */
+.stage{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  min-height:min(86vh, 820px); display:flex; flex-direction:column; padding:20px 24px; gap:16px; position:sticky; top:calc(16px + env(safe-area-inset-top,0px))}
+@media (max-width:900px){ .stage{position:static; min-height:auto} }
+.stage-head{display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap}
+.brand{font-family:var(--f-display); font-weight:700; font-size:1.15rem; letter-spacing:-.01em}
+.meta{color:var(--muted); font-size:.9rem; font-variant-numeric:tabular-nums}
+.result{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; text-align:center; padding-block:8px}
+.sum-row{display:flex; align-items:center; justify-content:center; gap:clamp(16px,4vw,44px); flex-wrap:wrap}
+.dice{display:flex; gap:clamp(10px,2vw,18px)}
+.die{width:clamp(78px,10vw,128px); aspect-ratio:1; max-width:100%; border-radius:20%; display:grid; grid-template:repeat(3,1fr)/repeat(3,1fr);
+  padding:14%; gap:4%; box-shadow:0 2px 0 rgba(0,0,0,.18), inset 0 -6px 0 rgba(0,0,0,.12)}
+.die.a{background:var(--die-a)} .die.b{background:var(--die-b); box-shadow:0 2px 0 rgba(0,0,0,.18), inset 0 -6px 0 rgba(0,0,0,.08), inset 0 0 0 1px rgba(60,45,25,.18)}
+.die span{border-radius:50%; align-self:center; justify-self:center; width:82%; aspect-ratio:1; visibility:hidden}
+.die.a span{background:var(--pip-a)} .die.b span{background:var(--pip-b)}
+.die span.on{visibility:visible}
+.die.tumble{animation:tumble .55s ease-out}
+.die.b.tumble{animation-delay:.04s}
+@keyframes tumble{0%{transform:rotate(-30deg) translateY(-14px) scale(.9)}40%{transform:rotate(18deg) translateY(4px)}70%{transform:rotate(-6deg)}100%{transform:none}}
+.sum{font-family:var(--f-display); font-weight:800; font-size:clamp(7rem,17vw,15rem); line-height:.85; letter-spacing:-.04em; font-variant-numeric:tabular-nums; min-width:1.2ch}
+.sum.hot{color:var(--robber)} .sum.seven{color:var(--robber)}
+.sum.idle{color:var(--line)}
+.pips-big{display:flex; gap:6px; justify-content:center; min-height:10px}
+.pips-big i,.pips i{display:block; border-radius:50%; background:currentColor}
+.pips-big i{width:10px; height:10px}
+.callout{font-size:1.05rem; color:var(--muted)}
+.callout:empty{display:none}
+.produce{display:flex; flex-wrap:wrap; gap:14px; justify-content:center; min-height:96px; align-items:center}
+.res-big{display:flex; align-items:center; gap:16px; padding:12px 28px 12px 12px; border-radius:999px; background:var(--surface-2); border:1px solid var(--line);
+  font-family:var(--f-display); font-weight:800; font-size:clamp(1.6rem,3vw,2.4rem); letter-spacing:-.01em}
+.res-big .hex{width:clamp(56px,6vw,76px); height:clamp(63px,6.75vw,86px)}
+.res-big .x{color:var(--muted); font-weight:700; font-size:.75em}
+.robber-box{background:var(--robber-soft); color:var(--robber); border-radius:12px; padding:12px 18px; font-weight:600; max-width:44ch}
+.empty-note{color:var(--muted); font-size:.95rem; max-width:40ch}
+.pop{animation:pop .35s ease-out}
+@keyframes pop{0%{opacity:0; transform:translateY(8px) scale(.96)}100%{opacity:1; transform:none}}
+
+.controls{display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:center}
+.btn-roll{background:var(--sea); color:#fff; border:0; border-radius:12px; padding:14px 26px; font-weight:700; font-size:1.1rem; display:flex; align-items:center; gap:10px}
+.btn-roll:hover{filter:brightness(1.08)}
+:root[data-theme="dark"] .btn-roll{color:#08161B}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .btn-roll{color:#08161B} }
+kbd{font-family:var(--f-body); font-size:.78rem; border:1px solid currentColor; border-radius:6px; padding:1px 7px; opacity:.85}
+.btn{background:var(--surface-2); border:1px solid var(--line); border-radius:10px; padding:9px 14px; font-weight:600; font-size:.92rem}
+.btn:hover{border-color:var(--muted)}
+.btn:disabled{opacity:.45; cursor:default}
+.btn.danger.armed{background:var(--robber); border-color:var(--robber); color:#fff}
+
+.history{border-top:1px solid var(--line); padding-top:12px}
+.label{font-size:.72rem; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); font-weight:700}
+.hist-list{display:flex; gap:6px; overflow-x:auto; padding-block:8px 2px; scrollbar-width:thin}
+.hist-list .h{flex:none; min-width:36px; height:36px; border-radius:9px; display:grid; place-items:center; font-weight:700; font-variant-numeric:tabular-nums;
+  background:var(--surface-2); border:1px solid var(--line)}
+.hist-list .h.seven{background:var(--robber-soft); color:var(--robber); border-color:transparent}
+.hist-list .h:first-child{background:var(--fg); color:var(--bg); border-color:transparent}
+.hist-list .h.seven:first-child{background:var(--robber); color:#fff}
+.hist-empty{color:var(--muted); font-size:.9rem; padding-block:8px}
+
+/* ---------- Side panels ---------- */
+.side{display:flex; flex-direction:column; gap:16px; min-width:0}
+.panel{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:18px 20px}
+.panel h2{font-family:var(--f-display); font-weight:700; font-size:1.2rem; margin:0; letter-spacing:-.01em; text-wrap:balance}
+.panel-head{display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px}
+.panel-sub{color:var(--muted); font-size:.88rem; margin:2px 0 0}
+
+.chart{display:grid; grid-template-columns:repeat(11,minmax(0,1fr)); gap:6px; align-items:end; height:220px; padding-top:22px; position:relative}
+.col{display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; position:relative; min-width:0}
+.bar-wrap{position:relative; width:100%; flex:1; display:flex; align-items:flex-end; justify-content:center}
+.bar{width:78%; background:var(--sea); border-radius:5px 5px 2px 2px; min-height:2px; transition:height .3s ease; position:relative; opacity:.85}
+.col.seven .bar{background:var(--robber)}
+.col.last .bar{opacity:1; box-shadow:0 0 0 2px var(--surface), 0 0 0 4px var(--fg)}
+.exp{position:absolute; left:4%; right:4%; border-top:2px dashed var(--fg); opacity:.45; transition:bottom .3s ease}
+.cnt{position:absolute; font-size:.78rem; font-weight:700; font-variant-numeric:tabular-nums; transform:translateY(-100%); padding-bottom:3px; color:var(--fg)}
+.xlab{font-family:var(--f-display); font-weight:700; font-size:1rem; margin-top:6px; font-variant-numeric:tabular-nums}
+.col.hot .xlab{color:var(--robber)}
+.legend{display:flex; gap:16px; flex-wrap:wrap; margin-top:12px; color:var(--muted); font-size:.82rem; align-items:center}
+.legend .sw{display:inline-block; width:14px; height:10px; border-radius:3px; background:var(--sea); vertical-align:middle; margin-right:6px}
+.legend .dash{display:inline-block; width:18px; border-top:2px dashed var(--fg); opacity:.5; vertical-align:middle; margin-right:6px}
+
+.tally{display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px; margin-top:14px}
+.tally div{display:flex; flex-direction:column; align-items:center; gap:4px; background:var(--surface-2); border-radius:10px; padding:10px 4px; min-width:0}
+.tally b{font-family:var(--f-display); font-size:1.35rem; font-variant-numeric:tabular-nums; line-height:1}
+.tally small{color:var(--muted); font-size:.75rem; font-weight:600}
+.tally .hex{width:22px; height:25px}
+
+.board{display:flex; flex-direction:column}
+.brow{display:grid; grid-template-columns:62px minmax(0,1fr) auto; gap:10px; align-items:center; padding-block:8px; border-top:1px solid var(--line)}
+.brow:first-child{border-top:0}
+.brow.flash{background:var(--sea-soft); border-radius:8px}
+.bnum{display:flex; flex-direction:column; align-items:center; gap:3px}
+.bnum b{font-family:var(--f-display); font-size:1.4rem; line-height:1; font-variant-numeric:tabular-nums}
+.brow.hot .bnum b{color:var(--robber)}
+.pips{display:flex; gap:2px; color:var(--muted)} .pips i{width:4px; height:4px}
+.brow.hot .pips{color:var(--robber)}
+.tiles{display:flex; flex-wrap:wrap; gap:6px; min-height:30px; align-items:center; min-width:0}
+.tile{display:flex; align-items:center; gap:6px; padding:3px 9px 3px 4px; border-radius:999px; border:1px solid var(--line); background:var(--surface-2); font-size:.85rem; font-weight:600}
+.tile .hex{width:20px; height:22px}
+.tile .rm{color:var(--muted); font-size:1rem; line-height:1; margin-left:2px}
+.tile:hover{border-color:var(--robber)} .tile:hover .rm{color:var(--robber)}
+.tiles .none{color:var(--muted); font-size:.82rem}
+.adders{display:flex; gap:4px}
+.add{border:0; background:transparent; padding:2px; border-radius:6px; line-height:0}
+.add .hex{width:24px; height:27px; opacity:.85; transition:transform .1s}
+.add:hover .hex{opacity:1; transform:scale(1.1)}
+@media (max-width:520px){ .brow{grid-template-columns:52px minmax(0,1fr)} .adders{grid-column:2} }
+
+.hex{display:grid; place-items:center; clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%); color:var(--chip-fg); font-weight:800; font-size:.62em; flex:none}
+.hex svg{width:58%; height:58%}
+.r-wood{background:var(--wood)} .r-brick{background:var(--brick)} .r-sheep{background:var(--sheep)} .r-wheat{background:var(--wheat)} .r-ore{background:var(--ore)}
+.res-legend{display:flex; flex-wrap:wrap; gap:12px; margin-top:12px; font-size:.82rem; color:var(--muted)}
+.res-legend span{display:flex; align-items:center; gap:6px}
+.res-legend .hex{width:16px; height:18px}
+.toast{font-size:.85rem; color:var(--muted); min-height:1.2em; margin-top:8px}
+
+@media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important} }
+</style>
+
+<div class="app">
+  <section class="stage" aria-label="Zar masası">
+    <div class="stage-head">
+      <div class="brand">Catan Zar Masası</div>
+      <div class="meta" id="meta">Henüz atış yok</div>
+    </div>
+
+    <div class="result">
+      <div class="sum-row">
+        <div class="dice" aria-hidden="true">
+          <div class="die a" id="dieA"></div>
+          <div class="die b" id="dieB"></div>
+        </div>
+        <div class="sum idle" id="sum" aria-live="polite">–</div>
+      </div>
+      <div class="pips-big" id="pipsBig"></div>
+      <div class="produce" id="produce"></div>
+      <div class="callout" id="callout"></div>
+    </div>
+
+    <div class="controls">
+      <button class="btn-roll" id="rollBtn">Zar at <kbd>Space</kbd></button>
+      <button class="btn" id="undoBtn" disabled>Son atışı geri al</button>
+      <button class="btn danger" id="resetBtn">Yeni oyun</button>
+    </div>
+
+    <div class="history">
+      <div class="label">Son atışlar · en yeni solda</div>
+      <div class="hist-list" id="hist"></div>
+    </div>
+  </section>
+
+  <div class="side">
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Bu oyunun dağılımı</h2>
+          <p class="panel-sub" id="distSub">Atış yapıldıkça dolacak.</p>
+        </div>
+      </div>
+      <div class="chart" id="chart"></div>
+      <div class="legend">
+        <span><span class="sw"></span>Gelen</span>
+        <span><span class="dash"></span>Beklenen (olasılığa göre)</span>
+      </div>
+      <div class="tally" id="tally"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Tahta</h2>
+          <p class="panel-sub">Her sayının üstündeki kaynakları ekle. Sağdaki altıgenlere tıkla; eklenen kaynağa tıklarsan silinir.</p>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap">
+          <button class="btn" id="randBtn">Rastgele doldur</button>
+          <button class="btn danger" id="clearBtn">Temizle</button>
+        </div>
+      </div>
+      <div class="board" id="board"></div>
+      <div class="res-legend" id="resLegend"></div>
+      <div class="toast" id="toast"></div>
+    </section>
+  </div>
+</div>
+
+<script>
+(function(){
+  const RES = [
+    {k:'wood',  n:'Odun',   g:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2 5 12h4l-4 6h6v4h2v-4h6l-4-6h4z"/></svg>'},
+    {k:'brick', n:'Tuğla',  g:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 5h9v6H2zM13 5h9v6h-9zM2 13h4v6H2zM8 13h8v6H8zM18 13h4v6h-4z"/></svg>'},
+    {k:'sheep', n:'Koyun',  g:'<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="10" r="4"/><circle cx="14" cy="9" r="4"/><circle cx="12" cy="13" r="4.5"/><circle cx="19" cy="11" r="2.5"/><path d="M8 16h2v5H8zM14 16h2v5h-2z"/></svg>'},
+    {k:'wheat', n:'Buğday', g:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M11 9h2v13h-2z"/><ellipse cx="12" cy="4.5" rx="2" ry="3"/><ellipse cx="9" cy="9" rx="1.8" ry="3" transform="rotate(-30 9 9)"/><ellipse cx="15" cy="9" rx="1.8" ry="3" transform="rotate(30 15 9)"/><ellipse cx="9" cy="14" rx="1.8" ry="3" transform="rotate(-30 9 14)"/><ellipse cx="15" cy="14" rx="1.8" ry="3" transform="rotate(30 15 14)"/></svg>'},
+    {k:'ore',   n:'Maden',  g:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 20 9 8l4 6 3-4 6 10z"/></svg>'}
+  ];
+  const RMAP = Object.fromEntries(RES.map(r=>[r.k,r]));
+  const NUMS = [2,3,4,5,6,7,8,9,10,11,12];
+  const BOARD_NUMS = NUMS.filter(n=>n!==7);
+  const ways = n => 6 - Math.abs(7-n);
+  const FACES = {1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
+  const KEY = 'catan-zar-v1';
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Unbiased d6 from the browser's cryptographic RNG (rejection sampling: 252 = 6*42)
+  const buf = new Uint8Array(1);
+  function d6(){ for(;;){ crypto.getRandomValues(buf); if(buf[0] < 252) return (buf[0] % 6) + 1; } }
+
+  let state = {board:{}, rolls:[]};
+  BOARD_NUMS.forEach(n=>state.board[n]=[]);
+  try{ const s = JSON.parse(localStorage.getItem(KEY)); if(s && s.board && Array.isArray(s.rolls)) state = s; }catch(e){}
+  BOARD_NUMS.forEach(n=>{ if(!Array.isArray(state.board[n])) state.board[n]=[]; });
+  function save(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
+
+  const $ = id => document.getElementById(id);
+  const hex = (k, cls='') => `<span class="hex r-${k} ${cls}" title="${RMAP[k].n}">${RMAP[k].g}</span>`;
+  const pipsHTML = n => Array.from({length:ways(n)}, ()=>'<i></i>').join('');
+
+  function drawDie(el, v){
+    if(!el.children.length) el.innerHTML = '<span></span>'.repeat(9);
+    [...el.children].forEach((s,i)=>s.classList.toggle('on', !!v && FACES[v].includes(i)));
+  }
+
+  function groupRes(list){
+    const c = {}; list.forEach(k=>c[k]=(c[k]||0)+1);
+    return RES.filter(r=>c[r.k]).map(r=>({k:r.k, n:r.n, c:c[r.k]}));
+  }
+
+  function renderStage(animate){
+    const last = state.rolls[state.rolls.length-1];
+    const sum = $('sum'), produce = $('produce'), callout = $('callout');
+    $('undoBtn').disabled = !last;
+    $('meta').textContent = last ? `Atış #${state.rolls.length}` : 'Henüz atış yok';
+    if(!last){
+      drawDie($('dieA'), 0); drawDie($('dieB'), 0);
+      sum.textContent = '–'; sum.className = 'sum idle';
+      $('pipsBig').innerHTML = ''; produce.innerHTML = '';
+      callout.textContent = '';
+      return;
+    }
+    const n = last.a + last.b;
+    drawDie($('dieA'), last.a); drawDie($('dieB'), last.b);
+    sum.textContent = n;
+    sum.className = 'sum' + (n===7 ? ' seven' : (n===6||n===8 ? ' hot' : ''));
+    $('pipsBig').innerHTML = pipsHTML(n);
+    $('pipsBig').style.color = (n===6||n===8||n===7) ? 'var(--robber)' : 'var(--muted)';
+    if(n===7){
+      produce.innerHTML = '<div class="robber-box">Haydut! Kimse kaynak almaz. 7’den fazla kartı olan yarısını atar, atan oyuncu haydudu taşır.</div>';
+      callout.textContent = '';
+    } else {
+      const tiles = state.board[n] || [];
+      if(tiles.length){
+        produce.innerHTML = groupRes(tiles).map(g=>`<div class="res-big">${hex(g.k)}${g.n}${g.c>1?` <span class="x">×${g.c}</span>`:''}</div>`).join('');
+        callout.textContent = '';
+      } else {
+        produce.innerHTML = `<div class="empty-note">${n} için tahtada kaynak girilmedi. Sağdaki Tahta bölümünden ekleyebilirsin.</div>`;
+        callout.textContent = '';
+      }
+    }
+    if(animate && !reduce){
+      [produce, sum].forEach(el=>{ el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); });
+    }
+  }
+
+  function renderHistory(){
+    const h = $('hist');
+    if(!state.rolls.length){ h.innerHTML = '<div class="hist-empty">Atışlar burada sıralanacak.</div>'; return; }
+    h.innerHTML = state.rolls.slice(-40).reverse().map(r=>{ const n=r.a+r.b; return `<div class="h${n===7?' seven':''}" title="${r.a} + ${r.b}">${n}</div>`; }).join('');
+  }
+
+  function renderChart(){
+    const total = state.rolls.length;
+    const counts = Object.fromEntries(NUMS.map(n=>[n,0]));
+    state.rolls.forEach(r=>counts[r.a+r.b]++);
+    const exp = n => total * ways(n) / 36;
+    const max = Math.max(1, ...NUMS.map(n=>Math.max(counts[n], exp(n))));
+    const last = state.rolls[state.rolls.length-1];
+    const lastN = last ? last.a+last.b : null;
+    $('chart').innerHTML = NUMS.map(n=>{
+      const h = counts[n]/max*100, e = exp(n)/max*100;
+      const cls = ['col', n===7?'seven':'', (n===6||n===8)?'hot':'', n===lastN?'last':''].join(' ');
+      return `<div class="${cls}" title="${n}: ${counts[n]} kez · beklenen ${exp(n).toFixed(1)}">
+        <div class="bar-wrap">
+          <div class="bar" style="height:${h}%"><span class="cnt" style="left:50%;transform:translate(-50%,-100%)">${total?counts[n]:''}</span></div>
+          ${total?`<div class="exp" style="bottom:${e}%"></div>`:''}
+        </div>
+        <div class="xlab">${n}</div>
+      </div>`;
+    }).join('');
+    if(total){
+      const sevens = counts[7];
+      $('distSub').textContent = `${total} atış · 7 sayısı ${sevens} kez geldi (beklenen ${exp(7).toFixed(1)})`;
+    } else $('distSub').textContent = 'Atış yapıldıkça dolacak.';
+
+    const prod = Object.fromEntries(RES.map(r=>[r.k,0]));
+    state.rolls.forEach(r=>(r.res||[]).forEach(k=>{ if(k in prod) prod[k]++; }));
+    $('tally').innerHTML = RES.map(r=>`<div>${hex(r.k)}<b>${prod[r.k]}</b><small>${r.n}</small></div>`).join('');
+  }
+
+  function renderBoard(){
+    $('board').innerHTML = BOARD_NUMS.map(n=>{
+      const tiles = state.board[n];
+      return `<div class="brow${(n===6||n===8)?' hot':''}" data-n="${n}">
+        <div class="bnum"><b>${n}</b><div class="pips">${pipsHTML(n)}</div></div>
+        <div class="tiles">${tiles.length ? tiles.map((k,i)=>`<button class="tile" data-rm="${i}" aria-label="${n} sayısından ${RMAP[k].n} kaldır">${hex(k)}${RMAP[k].n}<span class="rm">×</span></button>`).join('') : '<span class="none">Kaynak yok</span>'}</div>
+        <div class="adders">${RES.map(r=>`<button class="add" data-add="${r.k}" aria-label="${n} sayısına ${r.n} ekle" title="${r.n} ekle">${hex(r.k)}</button>`).join('')}</div>
+      </div>`;
+    }).join('');
+  }
+
+  function renderAll(animate){ renderStage(animate); renderHistory(); renderChart(); }
+
+  let rolling = false;
+  function roll(){
+    if(rolling) return;
+    const a = d6(), b = d6(), n = a+b;
+    const res = n===7 ? [] : (state.board[n]||[]).slice();
+    const finish = ()=>{
+      state.rolls.push({a, b, res, t:Date.now()});
+      save(); renderAll(true); rolling = false;
+      const row = document.querySelector(`.brow[data-n="${n}"]`);
+      if(row && !reduce){ row.classList.add('flash'); setTimeout(()=>row.classList.remove('flash'), 900); }
+    };
+    if(reduce){ finish(); return; }
+    rolling = true;
+    const dA = $('dieA'), dB = $('dieB');
+    [dA,dB].forEach(d=>{ d.classList.remove('tumble'); void d.offsetWidth; d.classList.add('tumble'); });
+    $('sum').className = 'sum idle'; $('sum').textContent = '…';
+    let ticks = 0;
+    const iv = setInterval(()=>{
+      drawDie(dA, 1+Math.floor(Math.random()*6)); drawDie(dB, 1+Math.floor(Math.random()*6)); // visual only
+      if(++ticks >= 7){ clearInterval(iv); finish(); }
+    }, 70);
+  }
+
+  function armed(btn, label, action){
+    if(btn.classList.contains('armed')){ btn.classList.remove('armed'); btn.textContent = label; clearTimeout(btn._t); action(); return; }
+    btn.classList.add('armed'); btn.textContent = 'Emin misin? Tekrar tıkla';
+    btn._t = setTimeout(()=>{ btn.classList.remove('armed'); btn.textContent = label; }, 3000);
+  }
+
+  $('rollBtn').addEventListener('click', e=>{ roll(); e.currentTarget.blur(); });
+  $('undoBtn').addEventListener('click', e=>{ state.rolls.pop(); save(); renderAll(false); e.currentTarget.blur(); });
+  $('resetBtn').addEventListener('click', e=>armed(e.currentTarget, 'Yeni oyun', ()=>{ state.rolls = []; save(); renderAll(false); toast('Atışlar sıfırlandı. Tahta aynı kaldı.'); }));
+  $('clearBtn').addEventListener('click', e=>armed(e.currentTarget, 'Temizle', ()=>{ BOARD_NUMS.forEach(n=>state.board[n]=[]); save(); renderBoard(); renderStage(false); toast('Tahta temizlendi.'); }));
+  $('randBtn').addEventListener('click', ()=>{
+    // Base game: 18 numbered tiles (desert has no number)
+    const pool = [...Array(4).fill('wood'),...Array(3).fill('brick'),...Array(4).fill('sheep'),...Array(4).fill('wheat'),...Array(3).fill('ore')];
+    const nums = [2,3,3,4,4,5,5,6,6,8,8,9,9,10,10,11,11,12];
+    for(let i=pool.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [pool[i],pool[j]]=[pool[j],pool[i]]; }
+    BOARD_NUMS.forEach(n=>state.board[n]=[]);
+    nums.forEach((n,i)=>state.board[n].push(pool[i]));
+    save(); renderBoard(); renderStage(false); toast('Örnek tahta dolduruldu. Kendi tahtanla değiştirebilirsin.');
+  });
+  $('board').addEventListener('click', e=>{
+    const row = e.target.closest('.brow'); if(!row) return;
+    const n = +row.dataset.n;
+    const add = e.target.closest('[data-add]'), rm = e.target.closest('[data-rm]');
+    if(add){ if(state.board[n].length >= 4){ toast(`${n} için en fazla 4 kaynak eklenebilir.`); return; } state.board[n].push(add.dataset.add); }
+    else if(rm){ state.board[n].splice(+rm.dataset.rm, 1); }
+    else return;
+    save(); renderBoard(); renderStage(false);
+  });
+
+  window.addEventListener('keydown', e=>{
+    if(e.code !== 'Space' && e.key !== ' ') return;
+    const t = e.target; if(t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+    e.preventDefault();
+    if(e.repeat) return;
+    roll();
+  });
+
+  let tt; function toast(msg){ $('toast').textContent = msg; clearTimeout(tt); tt = setTimeout(()=>$('toast').textContent='', 3500); }
+
+  $('resLegend').innerHTML = RES.map(r=>`<span>${hex(r.k)}${r.n}</span>`).join('');
+  renderBoard(); renderAll(false);
+})();
+</script>

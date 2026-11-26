@@ -1,4 +1,4 @@
-# Catan Zar Masası
+# Catan Dice
 
 Catan oyunları için tarayıcıda çalışan zar atıcı. Tek bir HTML dosyası; kurulum gerekmez.
 
